@@ -1,0 +1,313 @@
+Sub UpdateChart_Clicked(ByVal ButtonID As String)
+    Dim ws As Worksheet
+    Dim ws2 As Worksheet
+    Dim tbl As ListObject
+    Dim chartObj As ChartObject
+    Dim startDate As Date, endDate As Date
+    Dim expenseTotal As Double, incomeTotal As Double
+    Dim netDifference As Double
+    Dim i As Long
+    
+    ' Set the worksheet and table references
+    Set ws = ThisWorkbook.Sheets("Expenses&Income")
+    Set ws2 = ThisWorkbook.Sheets("FinancialReport")
+    Set tbl = ws.ListObjects("TransactionTable")
+    Set chartObj = ws2.ChartObjects("Chart 1")
+
+    ' Determine the time period based on which button was pressed
+    Select Case ButtonID
+        Case "1Day": startDate = Date - 1: endDate = Date
+        Case "7Days": startDate = Date - 7: endDate = Date
+        Case "30Days": startDate = Date - 30: endDate = Date
+        Case "90Days": startDate = Date - 90: endDate = Date
+        Case "YTD": startDate = DateSerial(Year(Date), 1, 1): endDate = Date
+        Case "1Year": startDate = Date - 365: endDate = Date
+        Case "AllTime": startDate = DateSerial(1900, 1, 1): endDate = Date
+    End Select
+
+    ' Reset totals
+    expenseTotal = 0
+    incomeTotal = 0
+
+    ' Loop through the table to calculate totals within the selected range
+    For i = 1 To tbl.ListRows.Count
+        With tbl.DataBodyRange.Rows(i)
+            ' Check if the transaction date is within the selected range
+            If .Cells(4).Value >= startDate And .Cells(4).Value <= endDate Then
+                ' Check the transaction type (Income or Expense) in Column 1
+                If .Cells(1).Value = "Expense" Then
+                    expenseTotal = expenseTotal + .Cells(2).Value
+                ElseIf .Cells(1).Value = "Income" Then
+                    incomeTotal = incomeTotal + .Cells(2).Value
+                End If
+            End If
+        End With
+    Next i
+
+    ' Calculate net difference
+    netDifference = incomeTotal - expenseTotal
+
+    ' Ensure that the chart has three series: Expenses, Income, and Net Difference
+    With chartObj.Chart
+        ' Check if Series 1 (Expenses), Series 2 (Income), and Series 3 (Net Difference) exist
+        If .SeriesCollection.Count < 3 Then
+            .SeriesCollection.NewSeries
+            .SeriesCollection(3).Name = "Net Difference"
+        End If
+
+        ' Update the expense, income, and net difference data
+        .SeriesCollection(1).Values = Array(expenseTotal)
+        .SeriesCollection(2).Values = Array(incomeTotal)
+        .SeriesCollection(3).Values = Array(netDifference)
+
+        ' Set series names
+        .SeriesCollection(1).Name = "Expenses"
+        .SeriesCollection(2).Name = "Income"
+        .SeriesCollection(3).Name = "Net Difference"
+
+        ' Set the chart title
+        .ChartTitle.Text = "Income vs Expense: " & ButtonID
+    End With
+
+    MsgBox "Chart updated for " & ButtonID, vbInformation
+End Sub
+
+Sub AddRowsForNewMonth()
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim lastRow As Long
+    Dim newRow As ListRow
+    Dim i As Integer
+    Dim lastCategory As String
+    Dim lastPlanned As Double
+    Dim currentMonth As String
+    
+    ' Set the worksheet and table reference
+    Set ws = ThisWorkbook.Sheets("Budgeting")
+    Set tbl = ws.ListObjects("BudgetTable")
+    
+    ' Get the current month as a string
+    currentMonth = Format(Date, "mmm")
+    
+    ' Get the last row's Category and Planned $ values
+    lastRow = tbl.ListRows.Count
+
+    ' Insert 5 new rows at the top of the table
+    For i = 1 To 6
+        Set newRow = tbl.ListRows.Add(1) ' Add a row at the top
+        
+        ' Copy values from the last row for Category and Planned $
+        newRow.Range.Cells(1, 1).Value = tbl.ListRows(7).Range(1, 1).Value ' Category
+        newRow.Range.Cells(1, 2).Value = tbl.ListRows(7).Range(1, 2).Value ' Planned $
+        
+        ' Set Actual $, Difference, and Month to default values
+        newRow.Range.Cells(1, 3).Value = 0 ' Actual $
+        newRow.Range.Cells(1, 4).Formula = "=[@[Planned $]]-[@[Actual $]]"  ' Difference
+        newRow.Range.Cells(1, 5).Value = currentMonth ' Month
+    Next i
+    
+End Sub
+
+' Add individual button click handlers
+Sub Button1_Click()
+    UpdateChart_Clicked "1Day"
+End Sub
+
+Sub Button2_Click()
+    UpdateChart_Clicked "7Days"
+End Sub
+
+Sub Button3_Click()
+    UpdateChart_Clicked "30Days"
+End Sub
+
+Sub Button4_Click()
+    UpdateChart_Clicked "90Days"
+End Sub
+
+Sub Button5_Click()
+    UpdateChart_Clicked "YTD"
+End Sub
+
+Sub Button6_Click()
+    UpdateChart_Clicked "1Year"
+End Sub
+Sub Button7_Click()
+    UpdateChart_Clicked "AllTime"
+End Sub
+
+Sub ProvideGoalAdvice()
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim row As ListRow
+    Dim mostPressingGoal As String
+    Dim mostFarBehindGoal As String
+    Dim nearestDeadline As Date
+    Dim maxDeficit As Double
+    Dim deficit As Double
+    Dim daysLeft As Date
+    Dim goalName As String
+    
+    ' Set worksheet and table references
+    Set ws = ThisWorkbook.Sheets("Goals&Investments")
+    Set tbl = ws.ListObjects("GoalTable")
+    
+    ' Initialize variables
+    nearestDeadline = Date + 365 ' Set to a far future date for comparison
+    maxDeficit = -1 ' Start with a very small deficit for comparison
+    
+    ' Loop through the table rows
+    For Each row In tbl.ListRows
+        ' Check if the goal is "Not on track"
+        If row.Range.Cells(1, 7).Value = "No" Then '
+            goalName = row.Range.Cells(1, 1).Value '
+            daysLeft = DateDiff("d", row.Range.Cells(1, 5).Value, row.Range.Cells(1, 4).Value)
+            deficit = row.Range.Cells(1, 3).Value - row.Range.Cells(1, 6).Value
+            
+            ' Update the most pressing goal
+            If deadline < nearestDeadline Then
+                nearestDeadline = row.Range.Cells(1, 4).Value
+                mostPressingGoal = goalName
+            End If
+            
+            ' Update the most far behind goal
+            If deficit > maxDeficit Then
+                maxDeficit = deficit
+                mostFarBehindGoal = goalName
+            End If
+        End If
+    Next row
+    
+    ' Display the advice using message boxes
+    If mostPressingGoal <> "" And mostFarBehindGoal <> "" Then
+        MsgBox "Most pressing goal: " & mostPressingGoal & vbNewLine & _
+               "Deadline: " & Format(nearestDeadline, "MMMM dd, yyyy"), vbInformation, "Goal Advice"
+               
+        MsgBox "Most far behind goal: " & mostFarBehindGoal & vbNewLine & _
+               "Deficit: $" & Format(maxDeficit, "0.00"), vbInformation, "Goal Advice"
+               
+        MsgBox "You can click the other financial report to see ways you can save more!", vbInformation
+
+    Else
+        MsgBox "All goals are on track. Great job!", vbInformation, "Goal Advice"
+    End If
+End Sub
+Sub BudgetAdvice()
+
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim category As String
+    Dim expected As Double, actual As Double, difference As Double
+    Dim typicalAmount As Double
+    Dim advice As String
+    Dim i As Integer
+
+    ' Set worksheet and table reference
+    Set ws = ThisWorkbook.Sheets("Budgeting")
+    Set tbl = ws.ListObjects("BudgetTable") ' Adjust the table name if necessary
+
+    ' Loop through each row in the table
+    For i = 1 To tbl.ListRows.Count
+        category = tbl.DataBodyRange.Cells(i, 1).Value ' Category
+        expected = tbl.DataBodyRange.Cells(i, 2).Value ' Expected $
+        actual = tbl.DataBodyRange.Cells(i, 3).Value ' Actual $
+        difference = tbl.DataBodyRange.Cells(i, 4).Value ' Difference
+
+        ' Check for typical spending advice based on the category
+        Select Case category
+            Case "Food"
+                typicalAmount = 200 ' Set the typical amount for Food (adjust as needed)
+            Case "Housing"
+                typicalAmount = 800 ' Set the typical amount for Housing
+            Case "Transportation"
+                typicalAmount = 100 ' Set the typical amount for Transportation
+            Case "School-related"
+                typicalAmount = 50 ' Set the typical amount for School-related
+            Case "Recurring"
+                typicalAmount = 150 ' Set the typical amount for Recurring
+            Case "Miscellaneous"
+                typicalAmount = 100 ' Set the typical amount for Miscellaneous
+            Case Else
+                typicalAmount = 0 ' Default case if category is not found
+        End Select
+
+        ' Advice based on Expected, Actual, and Difference
+        If expected > typicalAmount Then
+            advice = category & ": Expected is above typical amount! Consider revising your budget."
+            MsgBox advice, vbExclamation, "Budget Advice"
+        End If
+        
+        If actual > expected Then
+            advice = category & ": Actual spending is above expected! You may need to adjust."
+            MsgBox advice, vbExclamation, "Budget Advice"
+        End If
+
+        If difference < 0 Then
+            advice = category & ": You need to reign in your spending for this category."
+            MsgBox advice, vbExclamation, "Budget Advice"
+        End If
+    Next i
+
+End Sub
+
+Sub AddGoal()
+'   opens userform to add goal
+    AddGoalForm.Show
+    
+End Sub
+
+Sub AddAccount()
+'   opens userform to add account
+    AddAccountForm.Show
+    
+End Sub
+
+Sub RecordInvestment()
+'   opens userform to contribute to existing account
+    RecordInvestmentForm.Show
+
+End Sub
+
+Sub UpdateValue()
+'   opens userform to update existing account value
+    UpdateAccountValue.Show
+    
+End Sub
+
+Sub AddIncome()
+    'opens the Add Income form when pressed
+    IncomeForm.Show
+    
+End Sub
+
+
+Sub AddExpense()
+    'opens the Add Expense form when pressed
+    ExpenseForm.Show
+    
+End Sub
+
+Sub UpdateBudget()
+    'opens the BudgetUpdate form
+    BudgetUserform.Show
+End Sub
+
+Sub OpenExpensesAndIncome()
+    ThisWorkbook.Sheets("Expenses&Income").Activate
+End Sub
+
+Sub OpenFinancialReport()
+    ThisWorkbook.Sheets("FinancialReport").Activate
+End Sub
+
+Sub OpenGoalsAndInvestments()
+    ThisWorkbook.Sheets("Goals&Investments").Activate
+End Sub
+
+Sub OpenFinancialAdvice()
+    ThisWorkbook.Sheets("Financial Advice").Activate
+End Sub
+
+Sub OpenBudgeting()
+    ThisWorkbook.Sheets("Budgeting").Activate
+End Sub
